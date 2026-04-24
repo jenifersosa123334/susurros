@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1612">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Susurros">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Susurros — Historias Anónimas</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--ink:#1a1612;--paper:#faf8f3;--cream:#f0ece0;--sepia:#8b7355;--rust:#c4622d;--rust-light:#f5ece6;--muted:#9e9184;--border:#e0d8c8;--white:#fff}
+body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh}
+#app{display:flex;flex-direction:column;min-height:100vh}
+.screen{display:none;flex:1}
+.screen.active{display:flex}
+
+/* AUTH */
+#auth-screen{align-items:center;justify-content:center;background:var(--paper);position:relative;overflow:hidden}
+#auth-screen::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,var(--border) 39px,var(--border) 40px);opacity:.4}
+.auth-card{background:var(--white);border:1px solid var(--border);border-radius:2px;padding:3rem 2.5rem;width:100%;max-width:400px;position:relative;z-index:1;box-shadow:4px 4px 0 var(--cream)}
+.brand{text-align:center;margin-bottom:2.5rem}
+.brand-icon{font-size:2.5rem;margin-bottom:.5rem}
+.brand h1{font-family:'Playfair Display',serif;font-size:2rem;color:var(--ink);letter-spacing:-.5px}
+.brand p{color:var(--muted);font-size:.85rem;margin-top:.3rem;font-style:italic}
+.tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
+.tab{flex:1;background:none;border:none;padding:.75rem;font-family:'DM Sans',sans-serif;font-size:.9rem;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.tab.active{color:var(--rust);border-bottom-color:var(--rust);font-weight:500}
+.field{margin-bottom:1.2rem}
+.field label{display:block;font-size:.8rem;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem}
+.field input{width:100%;background:var(--paper);border:1px solid var(--border);border-radius:1px;padding:.75rem 1rem;font-family:'DM Sans',sans-serif;font-size:.95rem;color:var(--ink);outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--rust)}
+.btn-primary{width:100%;background:var(--ink);color:var(--white);border:none;padding:.85rem;font-family:'DM Sans',sans-serif;font-size:.95rem;font-weight:500;cursor:pointer;border-radius:1px;transition:background .2s;margin-top:.5rem}
+.btn-primary:hover{background:#333}
+.btn-primary:disabled{background:var(--muted);cursor:not-allowed}
+.auth-error{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:.75rem 1rem;border-radius:1px;font-size:.85rem;margin-bottom:1rem;display:none}
+.auth-error.show{display:block}
+.anon-btn{width:100%;background:none;border:1px dashed var(--border);padding:.7rem;font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--muted);cursor:pointer;margin-top:.75rem;border-radius:1px;transition:all .2s}
+.anon-btn:hover{border-color:var(--sepia);color:var(--sepia)}
+
+/* MAIN */
+#main-screen{flex-direction:column}
+header{background:var(--white);border-bottom:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.header-brand{font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--ink)}
+.header-right{display:flex;align-items:center;gap:.75rem}
+.user-badge{font-size:.8rem;color:var(--muted);background:var(--cream);padding:.3rem .75rem;border-radius:20px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-logout{background:none;border:1px solid var(--border);padding:.35rem .85rem;font-family:'DM Sans',sans-serif;font-size:.8rem;color:var(--muted);cursor:pointer;border-radius:1px;transition:all .2s}
+.btn-logout:hover{border-color:var(--rust);color:var(--rust)}
+
+main{flex:1;max-width:680px;margin:0 auto;width:100%;padding:2rem 1.5rem}
+
+.write-box{background:var(--white);border:1px solid var(--border);border-radius:2px;padding:1.5rem;margin-bottom:2rem;box-shadow:2px 2px 0 var(--cream)}
+.write-box h2{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--ink);margin-bottom:1rem}
+.cat-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.cat-btn{background:var(--paper);border:1px solid var(--border);padding:.3rem .75rem;border-radius:20px;font-size:.8rem;color:var(--muted);cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
+.cat-btn.sel{background:var(--rust-light);border-color:var(--rust);color:var(--rust)}
+#story-input{width:100%;background:var(--paper);border:1px solid var(--border);border-radius:1px;padding:1rem;font-family:'Playfair Display',serif;font-size:1rem;color:var(--ink);resize:vertical;min-height:100px;outline:none;line-height:1.7;font-style:italic;transition:border-color .2s}
+#story-input:focus{border-color:var(--rust)}
+.write-footer{display:flex;align-items:center;justify-content:space-between;margin-top:.75rem}
+.char-count{font-size:.78rem;color:var(--muted)}
+.btn-publish{background:var(--rust);color:var(--white);border:none;padding:.6rem 1.5rem;font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:500;cursor:pointer;border-radius:1px;transition:background .2s}
+.btn-publish:hover{background:#a85224}
+.btn-publish:disabled{background:var(--muted);cursor:not-allowed}
+.success-msg{background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;padding:.6rem 1rem;border-radius:1px;font-size:.85rem;margin-top:.5rem;display:none}
+.success-msg.show{display:block}
+
+.feed-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem}
+.feed-header h2{font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--ink)}
+.filter-row{display:flex;gap:.4rem;flex-wrap:wrap}
+.filter-btn{background:none;border:1px solid var(--border);padding:.25rem .65rem;border-radius:20px;font-size:.78rem;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.filter-btn.active{background:var(--ink);border-color:var(--ink);color:var(--white)}
+
+#stories-list{display:flex;flex-direction:column;gap:1rem}
+.story-card{background:var(--white);border:1px solid var(--border);border-radius:2px;padding:1.5rem;box-shadow:2px 2px 0 var(--cream);animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.story-meta{display:flex;align-items:center;gap:.5rem;margin-bottom:.85rem;flex-wrap:wrap}
+.story-cat{font-size:.72rem;font-weight:500;text-transform:uppercase;letter-spacing:.07em;background:var(--cream);color:var(--sepia);padding:.2rem .6rem;border-radius:20px}
+.story-time{font-size:.75rem;color:var(--muted)}
+.story-anon{font-size:.75rem;color:var(--muted);margin-left:auto}
+.story-text{font-family:'Playfair Display',serif;font-size:1rem;line-height:1.8;color:var(--ink);font-style:italic}
+.story-actions{display:flex;align-items:center;gap:1rem;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border)}
+.like-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:.4rem;color:var(--muted);font-size:.82rem;font-family:'DM Sans',sans-serif;transition:color .2s;padding:0}
+.like-btn:hover{color:var(--rust)}
+.like-btn.liked{color:var(--rust)}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted)}
+.empty-state p:first-child{font-family:'Playfair Display',serif;font-size:1.2rem;font-style:italic;margin-bottom:.5rem}
+.loader{text-align:center;padding:2rem;color:var(--muted);font-style:italic;font-family:'Playfair Display',serif}
+
+/* Install banner */
+#install-banner{display:none;background:var(--ink);color:var(--white);padding:.8rem 1.25rem;align-items:center;justify-content:space-between;gap:.75rem;position:fixed;bottom:0;left:0;right:0;z-index:999;box-shadow:0 -2px 12px rgba(0,0,0,.15)}
+#install-banner.show{display:flex}
+#install-banner p{font-size:.83rem;line-height:1.4;flex:1}
+#install-banner p span{display:block;font-size:.72rem;opacity:.65;margin-top:.1rem}
+.btn-install{background:var(--rust);color:var(--white);border:none;padding:.45rem 1.1rem;font-family:"DM Sans",sans-serif;font-size:.83rem;font-weight:500;cursor:pointer;border-radius:1px;white-space:nowrap;flex-shrink:0}
+.btn-dismiss{background:none;border:none;color:rgba(255,255,255,.45);font-size:1.3rem;cursor:pointer;padding:0 .2rem;line-height:1;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- PWA Install Banner -->
+<div id="install-banner">
+  <p>📲 Instala Susurros<span>Funciona sin internet una vez instalada</span></p>
+  <button class="btn-install" id="btn-install">Instalar</button>
+  <button class="btn-dismiss" onclick="document.getElementById('install-banner').classList.remove('show')">✕</button>
+</div>
+
+<div id="app">
+
+  <div id="auth-screen" class="screen active">
+    <div class="auth-card">
+      <div class="brand">
+        <div class="brand-icon">🕯️</div>
+        <h1>Susurros</h1>
+        <p>Historias anónimas, corazones reales</p>
+      </div>
+      <div class="auth-error" id="auth-error"></div>
+      <div class="tab-row">
+        <button class="tab active" id="tab-login" onclick="switchTab('login')">Entrar</button>
+        <button class="tab" id="tab-register" onclick="switchTab('register')">Registrarse</button>
+      </div>
+      <div id="login-form">
+        <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')loginUser()"></div>
+        <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginUser()"></div>
+        <button class="btn-primary" id="login-btn" onclick="loginUser()">Entrar</button>
+      </div>
+      <div id="register-form" style="display:none">
+        <div class="field"><label>Correo electrónico</label><input type="email" id="reg-email" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')registerUser()"></div>
+        <div class="field"><label>Contraseña</label><input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')registerUser()"></div>
+        <button class="btn-primary" id="reg-btn" onclick="registerUser()">Crear cuenta</button>
+      </div>
+      <button class="anon-btn" onclick="anonLogin()">✦ Entrar como visitante anónimo</button>
+    </div>
+  </div>
+
+  <div id="main-screen" class="screen">
+    <header>
+      <span class="header-brand">🕯️ Susurros</span>
+      <div class="header-right">
+        <span class="user-badge" id="user-badge">—</span>
+        <button class="btn-logout" onclick="logoutUser()">Salir</button>
+      </div>
+    </header>
+    <main>
+      <div class="write-box">
+        <h2>Comparte tu historia</h2>
+        <div class="cat-row">
+          <button class="cat-btn sel" data-cat="General" onclick="selCat(this)">General</button>
+          <button class="cat-btn" data-cat="Amor" onclick="selCat(this)">Amor</button>
+          <button class="cat-btn" data-cat="Miedo" onclick="selCat(this)">Miedo</button>
+          <button class="cat-btn" data-cat="Secreto" onclick="selCat(this)">Secreto</button>
+          <button class="cat-btn" data-cat="Sueño" onclick="selCat(this)">Sueño</button>
+          <button class="cat-btn" data-cat="Reflexión" onclick="selCat(this)">Reflexión</button>
+        </div>
+        <textarea id="story-input" placeholder="Escribe aquí… nadie sabrá que fuiste tú." maxlength="500" oninput="updateCount()"></textarea>
+        <div class="write-footer">
+          <span class="char-count"><span id="char-num">0</span>/500</span>
+          <button class="btn-publish" id="pub-btn" onclick="publishStory()">Publicar ✦</button>
+        </div>
+        <div class="success-msg" id="success-msg">¡Tu historia fue publicada de forma anónima! ✦</div>
+      </div>
+
+      <div class="feed-header">
+        <h2>Historias recientes</h2>
+        <div class="filter-row">
+          <button class="filter-btn active" onclick="filterFeed(this,'all')">Todas</button>
+          <button class="filter-btn" onclick="filterFeed(this,'Amor')">Amor</button>
+          <button class="filter-btn" onclick="filterFeed(this,'Secreto')">Secreto</button>
+          <button class="filter-btn" onclick="filterFeed(this,'Miedo')">Miedo</button>
+          <button class="filter-btn" onclick="filterFeed(this,'Sueño')">Sueño</button>
+          <button class="filter-btn" onclick="filterFeed(this,'Reflexión')">Reflexión</button>
+        </div>
+      </div>
+      <div id="stories-list"><div class="loader">Cargando historias…</div></div>
+    </main>
+  </div>
+
+</div>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCYrlGD5rE1y38H99E_o5pbThPjgDRXcjA",
+  authDomain: "bellota-7fea9.firebaseapp.com",
+  databaseURL: "https://bellota-7fea9-default-rtdb.firebaseio.com/",
+  projectId: "bellota-7fea9",
+  storageBucket: "bellota-7fea9.firebasestorage.app",
+  messagingSenderId: "167397712711",
+  appId: "1:167397712711:web:d373101d6de58e15cf2262"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let currentUser = null;
+let currentCat = 'General';
+let currentFilter = 'all';
+let allStories = [];
+let userLikes = {};
+let storiesListener = null;
+let likesListener = null;
+
+function showError(msg){
+  const el=document.getElementById('auth-error');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),5000);
+}
+
+function switchTab(tab){
+  document.getElementById('tab-login').classList.toggle('active',tab==='login');
+  document.getElementById('tab-register').classList.toggle('active',tab==='register');
+  document.getElementById('login-form').style.display=tab==='login'?'block':'none';
+  document.getElementById('register-form').style.display=tab==='register'?'block':'none';
+}
+
+async function loginUser(){
+  const e=document.getElementById('login-email').value.trim();
+  const p=document.getElementById('login-pass').value;
+  if(!e||!p){showError('Completa todos los campos');return;}
+  const btn=document.getElementById('login-btn');
+  btn.disabled=true;btn.textContent='Entrando…';
+  try{await auth.signInWithEmailAndPassword(e,p);}
+  catch(err){showError(errMsg(err.code));btn.disabled=false;btn.textContent='Entrar';}
+}
+
+async function registerUser(){
+  const e=document.getElementById('reg-email').value.trim();
+  const p=document.getElementById('reg-pass').value;
+  if(!e||!p){showError('Completa todos los campos');return;}
+  const btn=document.getElementById('reg-btn');
+  btn.disabled=true;btn.textContent='Creando cuenta…';
+  try{await auth.createUserWithEmailAndPassword(e,p);}
+  catch(err){showError(errMsg(err.code));btn.disabled=false;btn.textContent='Crear cuenta';}
+}
+
+async function anonLogin(){
+  try{await auth.signInAnonymously();}
+  catch(err){showError(errMsg(err.code));}
+}
+
+function logoutUser(){
+  if(storiesListener) db.ref('stories').off('value',storiesListener);
+  if(likesListener && currentUser) db.ref('likes/'+currentUser.uid).off('value',likesListener);
+  auth.signOut();
+}
+
+function errMsg(code){
+  const m={
+    'auth/invalid-email':'Correo inválido',
+    'auth/wrong-password':'Contraseña incorrecta',
+    'auth/invalid-credential':'Correo o contraseña incorrectos',
+    'auth/user-not-found':'No existe una cuenta con ese correo',
+    'auth/email-already-in-use':'Ese correo ya está registrado',
+    'auth/weak-password':'La contraseña debe tener al menos 6 caracteres',
+    'auth/network-request-failed':'Sin conexión a internet',
+    'auth/too-many-requests':'Demasiados intentos. Espera un momento.',
+    'auth/operation-not-allowed':'El acceso anónimo no está habilitado en Firebase'
+  };
+  return m[code]||'Error: '+code;
+}
+
+auth.onAuthStateChanged(user=>{
+  currentUser=user;
+  if(user){
+    document.getElementById('auth-screen').classList.remove('active');
+    document.getElementById('main-screen').classList.add('active');
+    const badge=document.getElementById('user-badge');
+    badge.textContent=user.isAnonymous?'👤 Visitante anónimo':(user.email||'Usuario');
+    loadLikes();
+    loadStories();
+  } else {
+    document.getElementById('main-screen').classList.remove('active');
+    document.getElementById('auth-screen').classList.add('active');
+    allStories=[];userLikes={};
+  }
+});
+
+function selCat(btn){
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  currentCat=btn.dataset.cat;
+}
+
+function updateCount(){
+  document.getElementById('char-num').textContent=document.getElementById('story-input').value.length;
+}
+
+async function publishStory(){
+  const text=document.getElementById('story-input').value.trim();
+  if(!text||text.length<3){return;}
+  const btn=document.getElementById('pub-btn');
+  btn.disabled=true;btn.textContent='Publicando…';
+  try{
+    await db.ref('stories').push({
+      text,
+      category:currentCat,
+      timestamp:firebase.database.ServerValue.TIMESTAMP,
+      likes:0
+    });
+    document.getElementById('story-input').value='';
+    updateCount();
+    const msg=document.getElementById('success-msg');
+    msg.classList.add('show');
+    setTimeout(()=>msg.classList.remove('show'),3000);
+    btn.textContent='Publicar ✦';
+    btn.disabled=false;
+  }catch(e){
+    btn.textContent='Error, intenta de nuevo';
+    setTimeout(()=>{btn.textContent='Publicar ✦';btn.disabled=false;},2500);
+  }
+}
+
+function loadLikes(){
+  if(!currentUser)return;
+  likesListener=db.ref('likes/'+currentUser.uid).on('value',snap=>{
+    userLikes=snap.val()||{};
+    renderStories();
+  });
+}
+
+function loadStories(){
+  storiesListener=db.ref('stories').orderByChild('timestamp').limitToLast(50).on('value',snap=>{
+    allStories=[];
+    snap.forEach(c=>{allStories.unshift({id:c.key,...c.val()});});
+    renderStories();
+  });
+}
+
+function filterFeed(btn,cat){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter=cat;
+  renderStories();
+}
+
+function renderStories(){
+  const list=document.getElementById('stories-list');
+  const stories=currentFilter==='all'?allStories:allStories.filter(s=>s.category===currentFilter);
+  if(!stories.length){
+    list.innerHTML='<div class="empty-state"><p>Aún no hay historias aquí…</p><span>Sé el primero en compartir algo</span></div>';
+    return;
+  }
+  list.innerHTML=stories.map(s=>`
+    <div class="story-card">
+      <div class="story-meta">
+        <span class="story-cat">${s.category||'General'}</span>
+        <span class="story-time">${timeAgo(s.timestamp)}</span>
+        <span class="story-anon">🌒 Anónimo</span>
+      </div>
+      <p class="story-text">${escHtml(s.text)}</p>
+      <div class="story-actions">
+        <button class="like-btn ${userLikes[s.id]?'liked':''}" onclick="toggleLike('${s.id}',${s.likes||0})">
+          <span style="font-size:1rem">${userLikes[s.id]?'♥':'♡'}</span>
+          <span>${s.likes||0} me gusta</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleLike(storyId,current){
+  if(!currentUser)return;
+  const liked=!!userLikes[storyId];
+  const newCount=liked?Math.max(0,current-1):current+1;
+  try{
+    await db.ref('likes/'+currentUser.uid+'/'+storyId).set(liked?null:true);
+    await db.ref('stories/'+storyId+'/likes').set(newCount);
+  }catch(e){console.error(e);}
+}
+
+function timeAgo(ts){
+  if(!ts)return '';
+  const d=Date.now()-ts;
+  if(d<60000)return 'Ahora mismo';
+  if(d<3600000)return Math.floor(d/60000)+'m';
+  if(d<86400000)return Math.floor(d/3600000)+'h';
+  if(d<604800000)return Math.floor(d/86400000)+'d';
+  return new Date(ts).toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+}
+
+function escHtml(t){
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+
+// ── PWA Install ──
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+document.getElementById('btn-install').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-banner').classList.remove('show');
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.remove('show');
+});
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
